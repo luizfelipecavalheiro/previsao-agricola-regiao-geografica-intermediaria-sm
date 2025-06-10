@@ -6,7 +6,11 @@ import unidecode
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Mapa de Previsão Agrícola - Região Geográfica Intermediária de Santa Maria/RS",
+    page_icon="🌾",  # opcional, pode ser emoji ou caminho de ícone
+    layout="wide"
+)
 st.title("Mapa de Previsão Agrícola - Região Geográfica Intermediária de Santa Maria/RS")
 st.markdown("<br><br>", unsafe_allow_html=True)
 
