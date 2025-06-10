@@ -256,7 +256,7 @@ with col5:
 
 
 combinacao_invalida = (
-    cultivo == "arroz" and variavel == "rendimento_medio" and modelo == "20anos"
+    cultivo == "arroz" and variavel == "rendimento_medio" and modelo == "20 anos"
 )
 
 cenarios = ["ssp126", "ssp245", "ssp370", "ssp585"]  # substitua pelos nomes exatos dos cenários no seu CSV
