@@ -500,7 +500,7 @@ else:
         Universidade Federal de Santa Maria – UFSM <br>
         Orientador: <strong><a href="https://www-usr.inf.ufsm.br/~joaquim" target="_blank" style="color: #ccc;">Joaquim Vinicius Carvalho Assunção</a></strong><br>
         Ano: 2025 <br>
-        <a href="https://github.com/joaosilva/mapa-previsao-agricola" target="_blank" style="color: #ccc;">Código-fonte no GitHub</a>
+        <a href="https://github.com/luizfelipecavalheiro/previsao-agricola-regiao-geografica-intermediaria-sm" target="_blank" style="color: #ccc;">Repositório no GitHub</a>
     </div>
     """
 
