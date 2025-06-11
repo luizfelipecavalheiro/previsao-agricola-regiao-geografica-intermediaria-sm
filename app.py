@@ -8,7 +8,7 @@ from shapely.ops import unary_union
 
 st.set_page_config(
     page_title="Mapa de Previsão Agrícola - Região Geográfica Intermediária de Santa Maria/RS",
-    page_icon="🌾",  # opcional, pode ser emoji ou caminho de ícone
+    page_icon="🌾",
     layout="wide"
 )
 st.title("Mapa de Previsão Agrícola - Região Geográfica Intermediária de Santa Maria/RS")
@@ -29,7 +29,6 @@ arquivos = {
 nomes_variaveis_amigaveis = {
     "rendimento_medio": "Rendimento Médio (kg/ha)",
     "quantidade_produzida": "Quantidade Produzida (ton)",
-    # adicione os outros conforme necessário
 }
 
 def padronizar_nome(nome):
@@ -136,7 +135,7 @@ for arquivo, (variavel_media, cultivo_media, periodo_media) in arquivos.items():
     df_temp['variavel'] = variavel_media
     df_temp['cultivo'] = cultivo_media
     df_temp['periodo'] = periodo_media
-    df_temp["cidade"] = df_temp["cidade"].apply(padronizar_nome)  # importante padronizar nome da cidade!
+    df_temp["cidade"] = df_temp["cidade"].apply(padronizar_nome)  # importante padronizar nome da cidade
     
     dfs.append(df_temp)
 
@@ -197,8 +196,9 @@ elif borda_rgi.geom_type == 'MultiPolygon':
 lons, lats = zip(*coords)
 
 cidades = sorted(df["cidade"].unique())
+
 # --- Interface ---
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     safra = st.selectbox("Safra (Ano):", sorted(df["safra"].unique()))
@@ -252,14 +252,15 @@ with col5:
             (df["modelo"] == modelo)
         ]
 
-
+with col6:
+    tipo_mapa = st.selectbox("Tipo de mapa:", ["Quantitativo", "Percentual"])
 
 
 combinacao_invalida = (
     cultivo == "arroz" and variavel == "rendimento_medio" and modelo == "20 anos"
 )
 
-cenarios = ["ssp126", "ssp245", "ssp370", "ssp585"]  # substitua pelos nomes exatos dos cenários no seu CSV
+cenarios = ["ssp126", "ssp245", "ssp370", "ssp585"] 
 
 
 # Calcular zmin e zmax globais para os 4 cenários
@@ -278,7 +279,34 @@ for cenario in cenarios:
         df_filtrado = df_filtrado[df_filtrado["cidade"] == cidade_selecionada]
 
     df_validos = df_filtrado[df_filtrado["cidade"].isin(cidades_santa_maria)]
-    valores = df_validos["valor"].dropna().tolist()
+
+    if tipo_mapa == "Percentual":
+        df_medias["periodo"] = df_medias["periodo"].astype(str).str.strip()
+        df_media_cultivo_variavel = df_medias[
+            (df_medias["cultivo"] == cultivo) &
+            (df_medias["variavel"] == variavel) &
+            (df_medias["periodo"] == modelo)
+        ][["cidade", "valor"]].rename(columns={"valor": "valor_media"})
+
+        df_validos = df_validos.merge(df_media_cultivo_variavel, on="cidade", how="left")
+
+        # Preenche NaN da média com zero
+        df_validos["valor_media"] = df_validos["valor_media"].fillna(0)
+
+        df_validos["valor_percentual"] = df_validos.apply(
+            lambda row: ((row["valor"] - row["valor_media"]) / row["valor_media"]) * 100
+            if row["valor_media"] != 0 and row["valor"] > 0 else 0,
+            axis=1
+        )
+
+        # Debug para verificar os valores
+        print(df_validos[["cidade", "valor", "valor_media", "valor_percentual"]])
+
+        valores = df_validos["valor_percentual"].tolist()
+
+    else:
+        valores = df_validos["valor"].dropna().tolist()
+
     valores_globais.extend(valores)
 
 if valores_globais:
@@ -315,15 +343,36 @@ else:
                 df_medias[(df_medias["cultivo"] == cultivo) & (df_medias["variavel"] == variavel) & (df_medias["periodo"] == modelo)],
                 on="cidade", how="left", suffixes=("", "_media")
             )
-            df_filtrado["diferenca"] = df_filtrado["valor"] - df_filtrado["valor_media"]
-
             
-            df_filtrado["diferenca_colorida"] = df_filtrado["diferenca"].apply(formatar_diferenca)
+            if tipo_mapa == "Percentual":
+                # Calcula percentual de variação em relação à média histórica
+                df_filtrado["valor_percentual"] = df_filtrado.apply(
+                    lambda row: ((row["valor"] - row["valor_media"]) / row["valor_media"]) * 100
+                    if row["valor_media"] != 0 and row["valor"] > 0 else 0,
+                    axis=1
+                )
+
+                # Para o mapa valor percentual
+                df_filtrado["z_valor"] = df_filtrado["valor_percentual"]
+                df_filtrado["diferenca"] = df_filtrado["valor"] - df_filtrado["valor_media"]
+                df_filtrado["valor_formatado"] = df_filtrado["valor"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "Sem dado")
+                df_filtrado["diferenca_colorida"] = df_filtrado["valor_percentual"].apply(formatar_diferenca) + "%"
+                titulo_colorbar = "Percentual de Variação (%)"
+                nome_escala = nomes_variaveis_amigaveis.get(variavel, variavel.replace("_", " ").capitalize())
+            else:
+                # Mapa quantitativo (valor absoluto)
+                df_filtrado["z_valor"] = df_filtrado["valor"]
+                df_filtrado["diferenca"] = df_filtrado["valor"] - df_filtrado["valor_media"]
+                df_filtrado["diferenca_colorida"] = df_filtrado["diferenca"].apply(formatar_diferenca)
+                df_filtrado["valor_formatado"] = df_filtrado["valor"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "Sem dado")
+                titulo_colorbar = nomes_variaveis_amigaveis.get(variavel, variavel.replace("_", " ").capitalize())
+                nome_escala = titulo_colorbar
+
             if cidade_selecionada != "Todas":
                 df_filtrado = df_filtrado[df_filtrado["cidade"] == cidade_selecionada]
 
             with cols[i]:
-                              # Pega o texto conforme o cenário (em minúsculas para garantir correspondência)
+                # Pega o texto conforme o cenário (em minúsculas para garantir correspondência)
                 texto_tooltip = descricoes_cenarios.get(cenario.lower(), "Descrição não disponível para este cenário.")
 
                 st.markdown(f"""
@@ -351,8 +400,8 @@ else:
                         margin-left: -110px;
                         opacity: 0;
                         transition: opacity 0.3s;
-                        font-weight: normal;   /* texto normal */
-                        font-size: 12px;       /* tamanho menor */
+                        font-weight: normal;
+                        font-size: 12px;
                     }}
 
                     .tooltip:hover .tooltiptext {{
@@ -377,15 +426,15 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
 
-
                 if not df_filtrado.empty:
                     cidades_geojson = [f["id"] for f in geojson["features"]]
                     df_mapa = pd.DataFrame({"cidade": cidades_geojson})
-                    df_merge = df_mapa.merge(df_filtrado[["cidade", "valor", "diferenca_colorida"]], on="cidade", how="left")
+                    df_merge = df_mapa.merge(df_filtrado[["cidade", "z_valor", "diferenca_colorida", "valor_formatado"]], on="cidade", how="left")
                     df_merge["regiao_santa_maria"] = df_merge["cidade"].apply(lambda x: x in cidades_santa_maria)
 
+                    # Usar z_valor no mapa
                     df_merge["z"] = df_merge.apply(
-                        lambda row: row["valor"] if row["regiao_santa_maria"] and pd.notna(row["valor"])
+                        lambda row: row["z_valor"] if row["regiao_santa_maria"] and pd.notna(row["z_valor"])
                         else (-9999 if not row["regiao_santa_maria"] else None),
                         axis=1
                     )
@@ -394,15 +443,10 @@ else:
                     zmin = zmin_global
                     zmax = zmax_global
 
-                    # [trecho acima permanece o mesmo até a criação do fig]
-
                     # Adiciona nome amigável da cidade
                     df_merge["cidade_amigavel"] = df_merge["cidade"].apply(
                         lambda x: nomes_cidades_amigaveis.get(x, x.title())
                     )
-
-                    # Arredonda os valores
-                    df_merge["valor_formatado"] = df_merge["valor"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "Sem dado")
 
                     # Define customdata para hover
                     df_merge["customdata"] = list(zip(df_merge["cidade_amigavel"], df_merge["valor_formatado"], df_merge["diferenca_colorida"]))
@@ -423,7 +467,7 @@ else:
                             [1.0, "#021835"]
                         ],
                         colorbar=dict(
-                            title=nomes_variaveis_amigaveis.get(variavel, variavel.replace("_", " ").capitalize()),
+                            title=titulo_colorbar,
                             thickness=10,
                             len=0.9,
                             x=0.90
@@ -432,9 +476,9 @@ else:
                         zmax=zmax,
                         marker_line_color="white",
                         marker_line_width=0.5,
-                        name="Produção",
+                        name=nome_escala,
                         customdata=df_merge["customdata"],
-                        hovertemplate="<b>%{customdata[0]}</b>" + f"<br>{nomes_variaveis_amigaveis.get(variavel)}:</br>" + "%{customdata[1]:.2f}</br>" + "Desvio em relação a média histórica:<br> %{customdata[2]}</br>" + "<extra></extra>",
+                        hovertemplate="<b>%{customdata[0]}</b>" + f"<br>{nome_escala}:</br>" + "%{customdata[1]}</br>" + "Desvio em relação a média histórica:<br> %{customdata[2]}</br>" + "<extra></extra>",
                     ))
 
                     fig.add_trace(go.Scattergeo(
@@ -467,7 +511,8 @@ else:
                         height=400,
                     )
 
-                    st.plotly_chart(fig, use_container_width=True, key=f"mapa_{cenario}_{cidade_selecionada}_{safra}_{modelo}",config={"scrollZoom": False})
+                    st.plotly_chart(fig, use_container_width=True, key=f"mapa_{cenario}_{cidade_selecionada}_{safra}_{modelo}_{tipo_mapa}",config={"scrollZoom": False})
+
     st.markdown("---")
 
     # Permite selecionar múltiplos cenários
@@ -502,8 +547,9 @@ else:
         <a href="mailto:lfsantos@inf.ufsm.br" style="color: #ccc;">lfsantos@inf.ufsm.br</a> <br>
         Trabalho de Conclusão de Curso – Ciência da Computação <br>
         Universidade Federal de Santa Maria – UFSM <br>
-        Orientador: <strong><a href="https://www-usr.inf.ufsm.br/~joaquim" target="_blank" style="color: #ccc;">Joaquim Vinicius Carvalho Assunção</a></strong><br>
+        Orientador: <strong><a href="https://www-usr.inf.ufsm.br/~joaquim/" target="_blank" style="color: #ccc;">Joaquim Vinicius Carvalho Assunção</a></strong><br>
         Ano: 2025 <br>
+        <a href="https://github.com/luizfelipecavalheiro/previsao-agricola-regiao-geografica-intermediaria-sm" target="_blank" style="color: #ccc;">Repositório no GitHub</a>
     </div>
     """
 
