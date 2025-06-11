@@ -253,7 +253,7 @@ with col5:
         ]
 
 with col6:
-    tipo_mapa = st.selectbox("Tipo de mapa:", ["Quantitativo", "Percentual"])
+    tipo_mapa = st.selectbox("Tipo de mapa:", ["Valor absoluto", "Percentual"])
 
 
 combinacao_invalida = (
