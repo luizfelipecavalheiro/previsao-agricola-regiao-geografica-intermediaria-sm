@@ -362,7 +362,10 @@ else:
             else:
                 # Mapa quantitativo (valor absoluto)
                 df_filtrado["z_valor"] = df_filtrado["valor"]
-                df_filtrado["diferenca"] = df_filtrado["valor"] - df_filtrado["valor_media"]
+                df_filtrado["diferenca"] = df_filtrado.apply(
+                    lambda row: row["valor"] - row["valor_media"] if row["valor"] > 0 else 0,
+                    axis=1
+                )
                 df_filtrado["diferenca_colorida"] = df_filtrado["diferenca"].apply(formatar_diferenca)
                 df_filtrado["valor_formatado"] = df_filtrado["valor"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "Sem dado")
                 titulo_colorbar = nomes_variaveis_amigaveis.get(variavel, variavel.replace("_", " ").capitalize())
